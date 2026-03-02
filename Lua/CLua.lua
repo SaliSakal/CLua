@@ -3,9 +3,9 @@
 --  Author:    Sali
 --  Category:  Core
 ----------------------------------------------
-include('loc/English');
+include('Loc/English');
 if LANG and LANG ~= "English" then
-	tryInclude('loc/' .. LANG);
+	tryInclude('Loc/' .. LANG);
 end;
 
 include('constants');
@@ -30,4 +30,5 @@ luaFiles = GetFiles("lua", "lua", true);
 table.diff(luaFiles,{"CLua","constants","OWMacros"});
 for _, luaFile in ipairs(luaFiles) do
     include(luaFile);
+
 end;
