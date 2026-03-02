@@ -9,6 +9,8 @@ CLua is a console application originally created for modding the game **Original
 - **Windows:** `Lua54.dll` must be present in the same directory as the executable.
 - **Linux:** `lua54.so` must be present in the same directory as the executable.
 
+> ⚠️ **Note:** On case-sensitive file systems, CLua behaves as if they were case-insensitive.
+
 You can obtain the Lua 5.4 binaries from the [official Lua website](https://www.lua.org/download.html) or build them from source.
 
 ## Lua Scripts
