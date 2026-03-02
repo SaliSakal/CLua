@@ -26,12 +26,13 @@ The project is written in **C#**. To compile it yourself:
    dotnet build -c Release
    ```
 4. Place `Lua54.dll` (Windows) or `lua54.so` (Linux) next to the compiled executable.
+5. Place the `Lua/` folder next to the compiled executable.
 
 ## Documentation
 
 Full documentation for the CLua API, available functions, and usage examples is available at:
 
-**https://salisakal.cz/clua**
+**https://salisakal.cz/clua-clua?jazyk=en**
 
 ## License
 
