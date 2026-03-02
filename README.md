@@ -1,6 +1,8 @@
 # CLua
 
-CLua is a console application for modding the game **Original War**. It extends the game's scripting capabilities using **Lua 5.4**, allowing modders to write and run Lua scripts as part of their mods.
+CLua is a console application originally created for modding the game **Original War**. It uses **Lua 5.4** scripts to process data tables and generate game files for use in mods.
+
+> **Note:** The Original War game module — including the export/import tables and the corresponding Lua scripts — is **not part of this repository**, as it depends on proprietary data. It is included in the compiled releases available for download on the [CLua website](https://salisakal.cz/clua).
 
 ## Requirements
 
@@ -11,9 +13,7 @@ You can obtain the Lua 5.4 binaries from the [official Lua website](https://www.
 
 ## Lua Scripts
 
-The repository also contains the Lua scripts (`.lua` files) that are part of CLua. These scripts define the modding API and helper functions available to mod authors. They are loaded and executed by the application at runtime.
-
-If you want to use or extend the Lua-side functionality, you can find the scripts in the `Lua/` directory.
+The repository also contains the Lua scripts (`.lua` files) that form the CLua API. The core files — `CLua.lua`, `Constants.lua`, and the `utils/` folder — are **required** for the application to function. They are loaded and executed by the application at runtime and must be present alongside the executable.
 
 ## Building from Source
 
