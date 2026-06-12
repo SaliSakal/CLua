@@ -4,6 +4,14 @@ CLua is a console application originally created for modding the game **Original
 
 > **Note:** The Original War game module — including the export/import tables and the corresponding Lua scripts — is **not part of this repository**, as it depends on proprietary data. It is included in the compiled releases available for download on the [CLua website](https://salisakal.cz/clua-clua).
 
+## Built with
+
+- [Terminal.GUI](https://github.com/gui-cs/Terminal.Gui) — console UI framework
+- [ClosedXML](https://github.com/ClosedXML/ClosedXML) — Excel (.xlsx) read/write
+- [Lua 5.5](https://www.lua.org/) — embedded scripting
+
+Terminal.GUI and ClosedXML are NuGet packages and are restored automatically during build.
+
 ## Requirements
 
 - **Windows:** `lua55.dll` must be placed in the repository root (next to the `CLua/` & `Content/` folders). The build process copies it automatically to the output directory.
@@ -38,4 +46,4 @@ Full documentation for the CLua API, available functions, and usage examples is 
 ## License
 
 This project is licensed under the **GNU General Public License v3.0**.
-See the [LICENSE](LICENSE) file for details.
+See the [L
