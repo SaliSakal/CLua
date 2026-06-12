@@ -25,6 +25,8 @@ You can obtain the Lua 5.5 binaries from the [official Lua website](https://www.
 
 The repository also contains the Lua scripts (`.lua` files) that form the CLua API. The core files — `CLua.lua`, `constants.lua`, and the `utils/` folder — are **required** for the application to function. They are loaded and executed by the application at runtime.
 
+Any additional `.lua` file placed directly in the root of the `Lua/` folder is loaded automatically after the essential files.
+
 ## Building from Source
 
 The project is written in **C#**. To compile it yourself:
