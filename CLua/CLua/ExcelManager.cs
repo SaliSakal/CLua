@@ -3030,26 +3030,26 @@ public static class ExcelManager
 
 
     // ===== CELL RECALCULATE =====
-public static int CalculateCell(IntPtr L)
-{
-    string sheetId = ToLuaString(L, 1);
-    int row = ToLuaInteger(L, 2);
-    int col = ToLuaInteger(L, 3);
-
-    var sheet = GetSheet(sheetId);
-    if (sheet == null) return 0;
-
-    try
+    public static int CalculateCell(IntPtr L)
     {
-        sheet.CalculateCell(row, col);
-        return 0;
+        string sheetId = ToLuaString(L, 1);
+        int row = ToLuaInteger(L, 2);
+        int col = ToLuaInteger(L, 3);
+    
+        var sheet = GetSheet(sheetId);
+        if (sheet == null) return 0;
+    
+        try
+        {
+            sheet.CalculateCell(row, col);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            PushLuaError(L, $"❌ Error calculating cell: {ex.Message}");
+            return 0;
+        }
     }
-    catch (Exception ex)
-    {
-        PushLuaError(L, $"❌ Error calculating cell: {ex.Message}");
-        return 0;
-    }
-}
 
 }
 
