@@ -1,46 +1,32 @@
-﻿//#define NEW_MENU
-
-using Terminal.Gui;
 using System.Text;
+using Terminal.Gui;
+using Terminal.Gui.App;
+using Terminal.Gui.Configuration;
+using Terminal.Gui.Drawing;
+using Terminal.Gui.Input;
+using Terminal.Gui.Resources;
+using Terminal.Gui.ViewBase;
+using Terminal.Gui.Views;
+using ThemeManager = Terminal.Gui.Configuration.ThemeManager;
+using Attribute = Terminal.Gui.Drawing.Attribute;
+using Color = Terminal.Gui.Drawing.Color;
+
+
 
 namespace CLua
 { 
     public partial class CLua
     {
-        static public string CLua_ver = "1.1.3:45";
+        public static IApplication App { get; private set; } = null!;
+        static public string CLua_ver = "1.3.0:50";
         static public LuaManager luaGUI = new LuaManager();
         static TextView logView;
         static Queue<string> logQueue = new Queue<string>();
         static TextWriter originalConsoleOut; // Uložíme původní Console.Out
 
-#if NEW_MENU
-        static public CustomMenuBar menu = new CustomMenuBar();
-        static public MainTopLevel top = new MainTopLevel();
-
-        static public Dictionary<string, MenuEntry> menuReferences = new Dictionary<string, MenuEntry>();
-        static public Dictionary<string, MenuEntry> menuItemReferences = new Dictionary<string, MenuEntry>();
-
-        public static void StoreMenuReferences(CustomMenuBar menuBar)
-        {
-            if (menuReferences.Count > 0) return; // Už bylo uloženo
-
-            foreach (var menu in menuBar.Menus)
-            {
-                menuReferences[menu.Title.ToString()] = menu;
-
-                if (menu.Children == null)
-                    continue;
-                foreach (var item in menu.Children)
-                {
-                    menuItemReferences[item.Title.ToString()] = item;
-                }
-            }
-        }
-
-#else
         static public MenuBar menu = new MenuBar();
         static public List<MenuBarItem> items = new List<MenuBarItem>();
-        static public Toplevel top = new Toplevel();
+        static public Window top = new Window();
 
 
         static public Dictionary<string, MenuBarItem> menuReferences = new Dictionary<string, MenuBarItem>();
@@ -51,21 +37,22 @@ namespace CLua
         {
             if (menuReferences.Count > 0) return; // Už bylo uloženo
 
-            foreach (var menu in menuBar.Menus)
+            foreach (var menu in items)
             {
                 menuReferences[menu.Title.ToString()] = menu;
 
-                foreach (var item in menu.Children)
+                var subItems = menu.PopoverMenu?.Root?.GetMenuItemsOfAllSubMenus();
+                if (subItems != null)
                 {
-                    menuItemReferences[item.Title.ToString()] = item;
-                    menuItemActions[item] = item.Action;
+                    foreach (var item in subItems)
+                    {
+                        var title = item.Title?.ToString();
+                        if (title != null)
+                            menuItemReferences[title] = item;
+                    }
                 }
-
-                //menuItemActions[menu] = menu.Action;
             }
         }
-
-#endif
 
 
         public static List<string> GetLanguageFiles()
@@ -108,6 +95,7 @@ namespace CLua
 
         }
 
+        [Obsolete]
         static void Main(string[] args)
         {
             Directory.SetCurrentDirectory(System.AppContext.BaseDirectory);
@@ -123,57 +111,22 @@ namespace CLua
             Console.WriteLine("ℹ️ Initializing...");
 
 
-            Application.Init();
+            App = Application.Create();
+            App.Init();
+            // Používáme jednoduché ASCII znaky pro checkboxy — Terminal.Gui v2 jinak používá Unicode PUA znaky které terminat barví vlastními barvami
+            // Used simple ASCII characters for checkboxes — Terminal.Gui v2 otherwise uses Unicode PUA characters that the terminal colors with its own colors
+            Glyphs.CheckStateChecked   = new Rune('✓');
+            Glyphs.CheckStateUnChecked = new Rune('▭');
+            //Glyphs.CheckStateNone      = new Rune('⬜');
 
             // Hlavní menu
-
-#if NEW_MENU
-
-            var program = new MenuEntry("_Program");
-
-            program.AddChild(new MenuEntry("_Reset CLua")
-            {
-                Enabled = true,
-                Action = () => LuaEngine.ResetSGUI(IntPtr.Zero)
-            });
-            program.AddChild(new MenuEntry("_Exit")
-            {
-                Enabled = true,
-                Action = () => Application.RequestStop()
-            });
-
-            menu.Menus.Add(program);
-            menu.Menus.Add(new MenuEntry("_File"));
-
-            var languageMenu = new MenuEntry("_Language");
-
-            foreach (var lang in GetLanguageFiles())
-            {
-                languageMenu.AddChild(new MenuEntry(lang)
-                {
-                    Enabled = true,
-                    Action = () => SetLanguage(lang)
-                });
-            }
-            menu.Menus.Add(languageMenu);
-            menu.Menus.Add(new MenuEntry("_About")
-            {
-                Enabled = true,
-                Action = () => AboutWindow.Show()
-            });
-            StoreMenuReferences(menu);
-
-            top.Add(menu);
-            top.Menu = menu;
-
-#else
 
             //    starý systém
             items.Add(new MenuBarItem("_Program", new MenuItem[]
                 {
                     //new MenuItem("_Spustit Lua skript", "", RunLuaScript),
                     new MenuItem("_Reset CLua", "", () => GuiLuaBridge.ResetSGUI(IntPtr.Zero) ), //,() => false  ),
-                    new MenuItem("_Exit", "", () => Application.RequestStop())
+                    new MenuItem("_Exit", "", () => App.RequestStop())
                 }));
 
             items.Add(new MenuBarItem("_File", new MenuItem[] { } ));
@@ -192,10 +145,94 @@ namespace CLua
             top.Add(menu);
 
             StoreMenuReferences(menu);
-#endif
+
+            // Hlavní barevné schéma RAOS
+
+            //Colors.ColorSchemes
+
+            var baseScheme = new Scheme
+            {
+                Normal = new Attribute(Color.Green, Color.Black), 
+                Focus = new Attribute(Color.BrightGreen, Color.Green), 
+                HotNormal = new Attribute(Color.BrightGreen, Color.Black), 
+                HotFocus = new Attribute(Color.Black, Color.BrightGreen),
+                Highlight = new Attribute(Color.BrightGreen, Color.Black, TextStyle.Italic),
+            };
+
+            SchemeManager.AddScheme("Base", baseScheme); // Fokus na zvýrazněném textu
+
+            SchemeManager.AddScheme("Menu", new Scheme
+            {
+                Normal = new Attribute(Color.Black, Color.Green),
+                HotNormal = new Attribute(Color.BrightGreen, Color.Black),
+                HotFocus = new Attribute(Color.Black, Color.Green),
+                Focus = new Attribute(Color.Black, Color.BrightGreen),
+                Disabled = new Attribute(Color.DarkGray, Color.Green),
+            });
+            menu.SchemeName = "Menu";
+
+
+            SchemeManager.AddScheme("Error", new Scheme
+            {
+                Normal = new Attribute(Color.BrightRed, Color.Black),
+            }); // Červený text pro chyby
 
 
 
+            SchemeManager.AddScheme("Buttons", baseScheme);
+
+            SchemeManager.AddScheme("Label", baseScheme);
+
+            // Další systémové prvky
+            // Other system elements
+            SchemeManager.AddScheme("Dialog", new Scheme
+            {
+                Normal = new Attribute(Color.Green, Color.Black),
+                Focus = new Attribute(Color.Black, Color.BrightGreen),
+                HotNormal = new Attribute(Color.BrightGreen, Color.Black),
+                HotFocus = new Attribute(Color.Black, Color.Green),
+                Disabled = new Attribute(Color.Green, Color.Black),
+                Highlight = new Attribute(Color.BrightGreen, Color.Black, TextStyle.Italic),
+                
+            });
+
+            SchemeManager.AddScheme("ProgressBar", new Scheme()
+            {
+                Normal = new Attribute(Color.Green, Color.Black), 
+                HotNormal = new Attribute(Color.BrightGreen, Color.Black), 
+                Focus = new Attribute(Color.Black, Color.Green), 
+                HotFocus = new Attribute(Color.Black, Color.BrightGreen) 
+            });
+
+            SchemeManager.AddScheme("Checkbox", new Scheme
+            {
+                Normal = new Attribute(Color.Green, Color.Black),
+                Focus = new Attribute(Color.BrightGreen, Color.Black),
+                HotNormal = new Attribute(Color.Green, Color.Black),
+                HotFocus = new Attribute(Color.BrightGreen, Color.Black),
+                Disabled = new Attribute(Color.DarkGray, Color.Black),
+                Highlight = new Attribute(Color.BrightGreen, Color.Black, TextStyle.Italic),
+            });
+
+            SchemeManager.AddScheme("logView", new Scheme
+            {
+                Normal = new Attribute(Color.Green, Color.Black),
+                Focus = new Attribute(Color.Green, Color.Black),
+                HotNormal = new Attribute(Color.BrightGreen, Color.Black), 
+                HotFocus = new Attribute(Color.Black, Color.Green), 
+                Disabled = new Attribute(Color.Green, Color.Black),
+
+            });
+
+            SchemeManager.AddScheme("TextField", new Scheme
+            {
+                Normal = new Attribute(Color.Green, Color.Black),
+                Focus = new Attribute(Color.Green, Color.Black),
+                HotNormal = new Attribute(Color.BrightGreen, Color.Black), 
+                HotFocus = new Attribute(Color.Black, Color.Green), 
+                Disabled = new Attribute(Color.Green, Color.Black),
+
+            });
 
             logView = new TextView
             {
@@ -206,33 +243,16 @@ namespace CLua
                 //Height = 8, // Pevná výška na 3 řádky
                 Height = Dim.Fill(),
                 ReadOnly = true,
-                WordWrap = true,
+                WordWrap = true,   // Zakázat zalamování, způsobuje pád při error se stacktracem // Disable word wrap, causes crash on error with stacktrace
                 //CanFocus = false,
 
                 Multiline = true,
 
-                ColorScheme = new ColorScheme
-                {
-                    //Normal = Application.Driver.MakeAttribute(Terminal.Gui.Color.Green, Terminal.Gui.Color.Black)
-
-                    Normal = new Terminal.Gui.Attribute(Color.Green, Color.Black),
-                    Focus = new Terminal.Gui.Attribute(Color.Green, Color.Black),
-                    HotNormal = new Terminal.Gui.Attribute(Color.BrightGreen, Color.Black), // Zvýraznění žluté
-                    HotFocus = new Terminal.Gui.Attribute(Color.Black, Color.Green), // Oranžovo-žluté zvýraznění v menu
-                    Disabled = new Terminal.Gui.Attribute(Color.Green, Color.Black),
-                }
+                SchemeName = "logView",
+                ViewportSettings = ViewportSettingsFlags.HasVerticalScrollBar
             };
 
-            /*
-            var button = new Button("🔄 Přidat zprávu do logu")
-            {
-                X = Pos.Center(),
-                Y = Pos.Center()
-            };
-            button.Clicked += () => Console.WriteLine($"[{DateTime.Now:T}] ✖ Náhodná zpráva!");
-            */
-            // win.Add(button);
-            //top.Add(win);
+
             top.Add(logView);
 
 
@@ -242,52 +262,7 @@ namespace CLua
             // Přesměrujeme Console.WriteLine() do GUI logu
             Console.SetOut(new GuiLogWriter());
 
-
-            // Hlavní barevné schéma RAOS
-
-
-
-
-
-            //Colors.ColorSchemes
-
-
-            Colors.Base.Normal = new Terminal.Gui.Attribute(Color.Green, Color.Black); // Zelený text na černém pozadí
-            Colors.Base.Focus = new Terminal.Gui.Attribute(Color.BrightGreen, Color.Green);  // Černý text na zeleném pozadí (fokus)
-            Colors.Base.HotNormal = new Terminal.Gui.Attribute(Color.BrightGreen, Color.Black); // Žlutý zvýrazněný text
-            Colors.Base.HotFocus = new Terminal.Gui.Attribute(Color.Black, Color.BrightGreen); // Fokus na zvýrazněném textu
-
-            // Další systémové prvky
-            Colors.Dialog.Normal = new Terminal.Gui.Attribute(Color.Green, Color.Black); // Dialogová okna (zelený text)
-            Colors.Dialog.Focus = new Terminal.Gui.Attribute(Color.Black, Color.BrightGreen); // Aktivní prvek v menu
-            Colors.Dialog.HotNormal = new Terminal.Gui.Attribute(Color.BrightGreen, Color.Black);
-            Colors.Dialog.HotFocus = new Terminal.Gui.Attribute(Color.Black, Color.Green);
-            Colors.Dialog.Disabled = new Terminal.Gui.Attribute(Color.Green, Color.Black);
-            //Colors.Dialog. = new Terminal.Gui.Attribute(Color.Green, Color.Black); // Dialogová okna (zelený text)
-            Colors.Menu.Normal = new Terminal.Gui.Attribute(Color.Black, Color.Green);  // Zelené menu
-            Colors.Menu.HotNormal = new Terminal.Gui.Attribute(Color.BrightGreen, Color.Black); // Zvýraznění žluté
-            Colors.Menu.HotFocus = new Terminal.Gui.Attribute(Color.Black, Color.Green); // Oranžovo-žluté zvýraznění v menu
-            Colors.Menu.Focus = new Terminal.Gui.Attribute(Color.Black, Color.BrightGreen); // Aktivní prvek v menu
-            Colors.Menu.Disabled = new Terminal.Gui.Attribute(Color.DarkGray, Color.Green);
-
-            Colors.Error.Normal = new Terminal.Gui.Attribute(Color.BrightRed, Color.Black); // Červený text pro chyby
-
-            
-            Colors.ColorSchemes.TryAdd("ProgressBar", new ColorScheme()
-            {
-                Normal = new Terminal.Gui.Attribute(Color.Green, Color.Black), // Zelená výplň, černé pozadí
-                HotNormal = new Terminal.Gui.Attribute(Color.BrightGreen, Color.Black), // Jasná zelená při zvýraznění
-                Focus = new Terminal.Gui.Attribute(Color.Black, Color.Green), // Invertované při zaměření
-                HotFocus = new Terminal.Gui.Attribute(Color.Black, Color.BrightGreen) // Zvýrazněné při zaměření
-            });
-
-            top.ColorScheme = new ColorScheme()
-            {
-                Normal = new Terminal.Gui.Attribute(Color.Green, Color.Black),
-                Focus = new Terminal.Gui.Attribute(Color.Black, Color.Green),
-                HotNormal = new Terminal.Gui.Attribute(Color.BrightGreen, Color.Black),
-                HotFocus = new Terminal.Gui.Attribute(Color.Black, Color.BrightGreen)
-            };
+            top.SchemeName = "Base";       
 
             StartWatchdog();
 
@@ -308,22 +283,20 @@ namespace CLua
 
             bool FirstRun = true;
 
-            Application.MainLoop.AddIdle(() =>
+            App.Iteration += (s, e) =>
             {
                 if (FirstRun)
-                    {
+                {
                     FirstRun = false;
                     luaGUI.Init("CLua", "");
                 }
                 Beat();
-
                 luaGUI.RunExecTick();
-                return true;
-            });
+            };
 
             try
             {
-                Application.Run(top);
+                App.Run(top);
 
 
                 // vypíše LOG z fronty do původní konzole při ukončení aplikace
@@ -364,17 +337,25 @@ namespace CLua
                                          .Replace("📌", "→ ")
                                          .Replace("📄", "✎ ")
                                          .Replace("🌙", "☾ ");
-                        
                 
+
                 if (logQueue.Count >= 200)
                         logQueue.Dequeue();
 
-                    logQueue.Enqueue(message);
+                // Odstraň problematické řídicí znaky (kromě tabulátoru a nového řádku)
+                //message = new string(message.Where(c => !char.IsControl(c) || c == '\n' || c == '\r' || c == '\t').ToArray());
 
-                    logView.Text = string.Join("\n", logQueue.Reverse());
+
+                logQueue.Enqueue(message);
 
 
-                    Application.Refresh();
+                logView.Text = string.Join("\n", logQueue.Reverse());
+
+
+                logView.SetNeedsDraw();
+
+
+                
 
 
             }
@@ -386,21 +367,12 @@ namespace CLua
 
             public static void WriteLine(string message)
             {
-                Application.MainLoop.Invoke(() =>
+                CLua.App.Invoke(() =>
                 {
 
                     logQueue.Enqueue(message);
-
-                    // Otočíme pořadí, aby nové zprávy byly nahoře
-                    logView.Text = string.Join("\n", logQueue.Reverse());
-                    
                 });
             }
-
         }
-
     }
-
 }
-
-

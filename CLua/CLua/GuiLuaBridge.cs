@@ -1,9 +1,19 @@
-﻿using NStack;
-using System.Xml.Linq;
+﻿using System.Text;
 using Terminal.Gui;
+using Terminal.Gui.App;
+using Terminal.Gui.Configuration;
+using Terminal.Gui.Drawing;
+using Terminal.Gui.Input;
+using Terminal.Gui.Resources;
+using Terminal.Gui.ViewBase;
+using Terminal.Gui.Views;
 using static CLua.CLua;
+using static GuiLuaBridge;
 using static Lua.LuaNative;
-using static Terminal.Gui.View;
+using Attribute = Terminal.Gui.Drawing.Attribute;
+using Color = Terminal.Gui.Drawing.Color;
+using ThemeManager = Terminal.Gui.Configuration.ThemeManager;
+
 
 
 public static class GuiLuaBridge
@@ -31,8 +41,7 @@ public static class GuiLuaBridge
             Width = Dim.Fill(),
             Height = 26,//Dim.Fill() - 9, //26
             Visible = visible,
-            CanFocus = true
-
+            CanFocus = true,
 
         };
 
@@ -44,7 +53,7 @@ public static class GuiLuaBridge
         top.Add(window);
               
 
-        window.SetNeedsDisplay();
+        window.SetNeedsDraw();
 
         PushLuaNumber(L, id); // Vrátíme ID do Lua
         return 1; // Počet návratových hodnot pro Lua
@@ -76,6 +85,7 @@ public static class GuiLuaBridge
             CanFocus=true
 
 
+
         };
 
         int id = nextId++;
@@ -86,36 +96,41 @@ public static class GuiLuaBridge
 
         window.Add(frame);
 
-        if (elements[windowId] is ScrollView pScroll)
+        if (elements[windowId] is MyScrollView pScroll)
             ScrollSizeUpdate(pScroll, frame.Frame.Right, frame.Frame.Bottom);
 
-        frame.SetNeedsDisplay();
+        frame.SetNeedsDraw();
 
         PushLuaInteger(L, id); // Vrátíme ID do Lua
         return 1; // Počet návratových hodnot pro Lua
     }
 
-    public class MyScrollView : ScrollView
+    public class MyScrollView : View
     {
-        private Rect _lastBounds;
+        private int _lastViewportWidth;
+        private int _lastViewportHeight;
 
-        public override void LayoutSubviews()
+        protected override void OnSubViewsLaidOut(LayoutEventArgs args)
         {
-            base.LayoutSubviews();
+            base.OnSubViewsLaidOut(args);
 
-            if (_lastBounds != Bounds)
+            // Přepočítej content size podle skutečných Frame hodnot dětí (po layoutu)
+            int maxX = 0, maxY = 0;
+            foreach (var child in SubViews)
             {
-                _lastBounds = Bounds;
+                maxX = Math.Max(maxX, child.Frame.Right);
+                maxY = Math.Max(maxY, child.Frame.Bottom);
+            }
+            if (maxX > 0) SetContentWidth(maxX);
+            if (maxY > 0) SetContentHeight(maxY);
 
-                // reset scroll pozice
-                ContentOffset = Point.Empty;
-                //ContentOffset = new Point(
-                //    Math.Min(ContentOffset.X, Math.Max(0, ContentSize.Width - Bounds.Width)),
-                //    Math.Min(ContentOffset.Y, Math.Max(0, ContentSize.Height - Bounds.Height))
-                //);
-
-                // volitelné, ale často pomůže
-                SetNeedsDisplay();
+            // Reset scroll pozice když se změní velikost viewportu (port z v1)
+            if (Viewport.Width != _lastViewportWidth || Viewport.Height != _lastViewportHeight)
+            {
+                _lastViewportWidth  = Viewport.Width;
+                _lastViewportHeight = Viewport.Height;
+                Viewport = Viewport with { X = 0, Y = 0 };
+                SetNeedsDraw();
             }
         }
     }
@@ -141,8 +156,9 @@ public static class GuiLuaBridge
             Y = y, // Pos.Y(window) + y,
             Width = width > 0 ? width : Dim.Fill(),
             Height = height > 0 ? height : Dim.Fill(),
-            ContentSize = new Size(0, 0),
-            CanFocus = true
+            CanFocus = true,
+            ViewportSettings = ViewportSettingsFlags.HasScrollBars
+
         };
 
         int id = nextId++;
@@ -150,42 +166,37 @@ public static class GuiLuaBridge
 
         //Application.Top.Add(window);
 
-
+        
         parent.Add(scroll);
 
-        scroll.SetNeedsDisplay();
+        scroll.SetNeedsDraw();
 
-        if (elements[parentId] is ScrollView pScroll)
+        if (elements[parentId] is MyScrollView pScroll)
             ScrollSizeUpdate(pScroll, scroll.Frame.Right, scroll.Frame.Bottom);
 
         PushLuaInteger(L, id); // Vrátíme ID do Lua
         return 1; // Počet návratových hodnot pro Lua
     }
 
-    public static void ScrollSizeUpdate(ScrollView scroll, int x, int y)
+    public static void ScrollSizeUpdate(View scroll, int x, int y)
     {
         int maxX = 0;
         int maxY = 0;
-        /*
-        maxX = Math.Max(x, scroll.ContentSize.Width);
-        maxY = Math.Max(y, scroll.ContentSize.Height);
 
-
-        */
-
-        foreach (var child in scroll.Subviews.ToList())
+        foreach (var child in scroll.SubViews.ToList())
         {
-            maxX = Math.Max(x, child.Frame.Right);
-            maxY = Math.Max(y, child.Frame.Bottom);
+            maxX = Math.Max(maxX, child.Frame.Right);
+            maxY = Math.Max(maxY, child.Frame.Bottom);
         }
 
-        scroll.ContentSize = new Size(maxX, maxY);
-        scroll.SetNeedsDisplay();
-        scroll.SetChildNeedsDisplay();
-
+        // Guard: nenastavovat 0 když Frame ještě nemá platné hodnoty (před layoutem).
+        // OnSubViewsLaidOut v MyScrollView to stejně přepočítá po prvním layoutu.
+        if (maxX > 0) scroll.SetContentWidth(maxX);
+        if (maxY > 0) scroll.SetContentHeight(maxY);
+        scroll.SetNeedsDraw();
     }
 
-    private static Dictionary<Button, Action> buttonCallbacks = new Dictionary<Button, Action>();
+    private static Dictionary<Button, EventHandler<CommandEventArgs>> buttonCallbacks = new Dictionary<Button, EventHandler<CommandEventArgs>>();
     private static Dictionary<Button, int> buttonCallbackRefs = new Dictionary<Button, int>();
     private static Dictionary<Button, object[]> buttonCallbackArgs = new();
 
@@ -207,12 +218,12 @@ public static class GuiLuaBridge
 
         var button = new Button()
         {
-            Text = text,
+            Title = text,
             X = x,
             Y = y,
-            Width = width > 0 ? width : text.Length + 4, // Pokud není zadaná šířka, nastavíme podle textu
-            Height = height > 0 ? height : 1, // Výchozí výška tlačítka = 1 řádek   -  potn TUI v2 vyžaduje výšku 2
-            
+            Width = width > 0 ? Dim.Absolute(width) : Dim.Auto(),
+            Height = Dim.Auto(),
+            SchemeName = "Button",
         };
 
         int callbackRef = -1;
@@ -243,17 +254,18 @@ public static class GuiLuaBridge
             newHandler = () => luaGUI.RunSlicedString(luaCallbackString);
         }
 
-        button.Clicked += newHandler;
+        EventHandler<CommandEventArgs> wrappedHandler = (s, e) => newHandler();
+        button.Accepting += wrappedHandler;
         
-        buttonCallbacks[button] = newHandler;
+        buttonCallbacks[button] = wrappedHandler;
 
         int id = nextId++;
         elements[id] = button;
 
         parent.Add(button);
-        button.SetNeedsDisplay();
+        button.SetNeedsDraw();
 
-        if ((elements[parentId] is ScrollView scroll))
+        if ((elements[parentId] is MyScrollView scroll))
             ScrollSizeUpdate(scroll, button.Frame.Right, button.Frame.Bottom);
 
         PushLuaInteger(L, id); // Vrátíme ID tlačítka do Lua
@@ -275,7 +287,7 @@ public static class GuiLuaBridge
         {
             if (elem is FrameView window)
             {
-                if (window.SuperView == Application.Top)
+                if (window.SuperView == App.TopRunnableView)
                     window.Visible = (window == activeWindow); // Jen jedno okno je viditelné
             }
         }
@@ -286,8 +298,8 @@ public static class GuiLuaBridge
         activeWindow.SetFocus();
 
 
-        activeWindow.SetNeedsDisplay();
-        Application.Refresh();
+        activeWindow.SetNeedsDraw();
+        App.LayoutAndDraw();
         return 0;
     }
 
@@ -309,21 +321,24 @@ public static class GuiLuaBridge
 
         var label = new Label()
         {
+            // HotKeySpecifier musí být před Text, jinak se _ parsuje jako hotkey při přiřazení textu
+            // HotKeySpecifier must be before Text, otherwise _ is parsed as hotkey when assigning text
+            HotKeySpecifier = new Rune('\xffff'),
             Text = text,
             X = x,
             Y = y,
-            Width = width > 0 ? width : text.Length, // Pokud není zadaná šířka, nastavíme podle textu
-            Height = height > 0 ? height : 1, // Výchozí výška tlačítka = 1 řádek   -  potn TUI v2 vyžaduje výšku 2
-
+            Width = width > 0 ? Dim.Absolute(width) : Dim.Auto(),
+            Height = height > 0 ? Dim.Absolute(height) : Dim.Auto(),
+            SchemeName = "Label"
         };
 
         int id = nextId++;
         elements[id] = label; // Uložíme label podle ID
 
         parent.Add(label);
-        label.SetNeedsDisplay();
+        label.SetNeedsDraw();
 
-        if (elements[parentId] is ScrollView scroll)
+        if (elements[parentId] is MyScrollView scroll)
             ScrollSizeUpdate(scroll, label.Frame.Right, label.Frame.Bottom);
 
         PushLuaInteger(L, id); // Vrátíme ID do Lua
@@ -355,9 +370,9 @@ public static class GuiLuaBridge
             Y = y,
             Width = width > 0 ? width : Dim.Fill() - x, // vezme WIDTH, pokud je 0, nastaví autoamtické roztahování s okrajem jako pozice
             Fraction = 0.0f, // Výchozí hodnota
-            ColorScheme = Colors.ColorSchemes["ProgressBar"],
+            SchemeName = "ProgressBar",
             ProgressBarStyle = ProgressBarStyle.Continuous,
-            ProgressBarFormat = ProgressBarFormat.FramedPlusPercentage
+            ProgressBarFormat = ProgressBarFormat.SimplePlusPercentage
 
         };
 
@@ -366,9 +381,9 @@ public static class GuiLuaBridge
         elements[id] = progressBar;
         parent.Add(progressBar);
 
-        progressBar.SetNeedsDisplay();
+        progressBar.SetNeedsDraw();
 
-        if (elements[parentId] is ScrollView scroll)
+        if (elements[parentId] is MyScrollView scroll)
             ScrollSizeUpdate(scroll, progressBar.Frame.Right, progressBar.Frame.Bottom);
 
 
@@ -395,18 +410,18 @@ public static class GuiLuaBridge
             Text = text,
             X = x,
             Y = y,
-            Checked = true // Výchozí stav je zaškrtnutý
+            Value = CheckState.Checked,
+            SchemeName = "Checkbox"
         };
-
         int id = nextId++;
-        elements[id] = checkbox; // Uložíme checkbox do seznamu prvků
+        elements[id] = checkbox;
 
         parent.Add(checkbox);
 
-        if (elements[parentId] is ScrollView scroll)
+        if (elements[parentId] is MyScrollView scroll)
             ScrollSizeUpdate(scroll, checkbox.Frame.Right, checkbox.Frame.Bottom);
 
-        checkbox.SetNeedsDisplay();
+        checkbox.SetNeedsDraw();
 
         PushLuaInteger(L, id); // Vrátíme ID do Lua
         return 1;
@@ -429,31 +444,31 @@ public static class GuiLuaBridge
         // Rozdělení stringu na pole položek a převedeme na ustring[]
         // Split string into array of items and convert to ustring[]
         string[] itemsArray = itemsStr.Split(';');
-        ustring[] items = new ustring[itemsArray.Length];
+        string[] items = new string[itemsArray.Length];
         for (int i = 0; i < itemsArray.Length; i++)
         {
             items[i] = itemsArray[i].Trim();
         }
 
-        var radioGroup = new RadioGroup(items)
+        var radioGroup = new OptionSelector
         {
             X = x,
             Y = y,
-            SelectedItem = 0, // Výchozí vybraná položka (první) // Default selected item (first)
-            DisplayMode = orientation.ToLower() == "horizontal"
-                ? DisplayModeLayout.Horizontal
-                : DisplayModeLayout.Vertical
+            Labels = items,
+            Value = 0,
+            Orientation = orientation == "horizontal" ? Orientation.Horizontal : Orientation.Vertical,
+            SchemeName = "Checkbox"
         };
 
         int id = nextId++;
         elements[id] = radioGroup; // Uložíní radioGroup do seznamu prvků // Save radioGroup to elements list
-
+        
         parent.Add(radioGroup);
 
-        if (elements[parentId] is ScrollView scroll)
+        if (elements[parentId] is MyScrollView scroll)
             ScrollSizeUpdate(scroll, radioGroup.Frame.Right, radioGroup.Frame.Bottom);
 
-        radioGroup.SetNeedsDisplay();
+        radioGroup.SetNeedsDraw();
 
         PushLuaInteger(L, id); // Vrácení ID do Lua // Return ID to Lua
         return 1;
@@ -463,32 +478,33 @@ public static class GuiLuaBridge
     {
         int radioId = ToLuaInteger(L, 1);
 
-        if (!elements.ContainsKey(radioId) || !(elements[radioId] is RadioGroup radio))
+        if (!elements.ContainsKey(radioId) || !(elements[radioId] is OptionSelector radio))
         {
             PushLuaError(L, $"RadioGroup ID {radioId} doesn't exist!");
             return 0;
         }
 
-        PushLuaInteger(L, radio.SelectedItem + 1);  // Index položky (0-based) proto ++1 // Item index (0-based) hence +1
+        PushLuaInteger(L, (radio.Value ?? 0) + 1);  // Index položky (0-based) proto ++1 // Item index (0-based) hence +1
         return 1;
     }
 
     public static int SetRadioSelected(IntPtr L)
     {
         int radioId = ToLuaInteger(L, 1); // RadioGroup ID 
-        int selectedIndex = ToLuaInteger(L, 2) - 1; // Index položky (0-based) proto -1 // Item index (0-based) hence -1
-        if (!elements.ContainsKey(radioId) || !(elements[radioId] is RadioGroup radio))
+        int selectedIndex = ToLuaInteger(L, 2) -1; // Index položky (0-based) proto -1 // Item index (0-based) hence -1
+        if (selectedIndex < 0) selectedIndex = 0; // Ochrana proti zápornému indexu // Protection against negative index 
+        if (!elements.ContainsKey(radioId) || !(elements[radioId] is OptionSelector radio))
         {
-            //Log.WriteLine($"⚠️ RadioGroup ID {radioId} doesn't exist!");
+
             PushLuaError(L, $"RadioGroup ID {radioId} doesn't exist!");
             return 0;
         }
         // Kontrola, zda je index v platném rozsahu
         // Check if index is within valid range
-        if (selectedIndex >= 0 && selectedIndex < radio.RadioLabels.Length)
+        if (selectedIndex >= 0 && selectedIndex < radio.Labels.Count)
         {
-            radio.SelectedItem = selectedIndex;
-            radio.SetNeedsDisplay();
+            radio.Value = (int)selectedIndex;
+            radio.SetNeedsDraw();
         }
         else
         {
@@ -509,13 +525,13 @@ public static class GuiLuaBridge
             return 1;
         }
 
-        PushLuaBoolean(L,checkbox.Checked);
+        PushLuaBoolean(L, checkbox.Value == CheckState.Checked);
         return 1;
     }
 
     // Přidej k ostatním slovníkům
     private static Dictionary<View, int> textFieldCallbackRefs = new Dictionary<View, int>();
-    private static Dictionary<View, Action<KeyEventEventArgs>> textFieldKeyUpCallbacks = new Dictionary<View, Action<KeyEventEventArgs>>();
+    private static Dictionary<View, EventHandler<Key>> textFieldKeyUpCallbacks = new Dictionary<View, EventHandler<Key>>();
     private static Dictionary<View, object[]> textFieldCallbackArgs = new();
     private static Dictionary<View, DateTime> lastKeyUpTime = new Dictionary<View, DateTime>();
 
@@ -534,12 +550,14 @@ public static class GuiLuaBridge
             return 0;
         }
 
-        var textField = new TextField(text)
+        var textField = new TextField
         {
+            Text = text,
             X = x,
             Y = y,
             Width = width,
-            Secret = secret
+            Secret = secret,
+            SchemeName = "TextField"
         };
 
         int id = nextId++;
@@ -547,10 +565,10 @@ public static class GuiLuaBridge
 
         parent.Add(textField);
 
-        if (elements[parentId] is ScrollView scroll)
+        if (elements[parentId] is MyScrollView scroll)
             ScrollSizeUpdate(scroll, textField.Frame.Right, textField.Frame.Bottom);
 
-        textField.SetNeedsDisplay();
+        textField.SetNeedsDraw();
 
         PushLuaInteger(L, id);
         return 1;
@@ -579,7 +597,11 @@ public static class GuiLuaBridge
             Width = width > 0 ? width : Dim.Fill(),
             Height = height > 0 ? height : Dim.Fill(),
             Text = text,
-            ReadOnly = readOnly
+            ReadOnly = readOnly,
+            SchemeName = "TextField",
+            Multiline = true,
+            WordWrap = true,
+            ViewportSettings = ViewportSettingsFlags.HasVerticalScrollBar
         };
 
         int id = nextId++;
@@ -587,10 +609,10 @@ public static class GuiLuaBridge
 
         parent.Add(textView);
 
-        if (elements[parentId] is ScrollView scroll)
+        if (elements[parentId] is MyScrollView scroll)
             ScrollSizeUpdate(scroll, textView.Frame.Right, textView.Frame.Bottom);
 
-        textView.SetNeedsDisplay();
+        textView.SetNeedsDraw();
 
         PushLuaInteger(L, id);
         return 1;
@@ -615,8 +637,10 @@ public static class GuiLuaBridge
             case "Text":
                 if (element is FrameView window)
                     window.Title = ToLuaString(L, 3);
-                else 
-                    element.Text = ToLuaString(L, 3);
+                else
+                    if (element is Button btn_t) btn_t.Title = ToLuaString(L, 3); else element.Text = ToLuaString(L, 3);
+                element.SetNeedsLayout();
+                element.SetNeedsDraw();
                 break;
             case "X":
                 element.X = ToLuaInteger(L, 3);
@@ -662,13 +686,13 @@ public static class GuiLuaBridge
                 break;
             case "Checked":
                 if (element is CheckBox cb)
-                    cb.Checked = ToLuaBoolean(L, 3);
+                    cb.Value = ToLuaBoolean(L, 3) ? CheckState.Checked : CheckState.UnChecked;
                 break;
             case "ReadOnly":
                 if (element is TextView textView)
                 {
                     textView.ReadOnly = ToLuaBoolean(L, 3);
-                    textView.SetNeedsDisplay();
+                    textView.SetNeedsDraw();
                 }
                 break;
             case "Clicked":
@@ -679,7 +703,7 @@ public static class GuiLuaBridge
                     // Remove existing callback if present
                     if (buttonCallbacks.ContainsKey(bt))
                     {
-                        bt.Clicked -= buttonCallbacks[bt];
+                        bt.Accepting -= buttonCallbacks[bt];
                         buttonCallbacks.Remove(bt);
 
                         if (buttonCallbackRefs.TryGetValue(bt, out int oldRef))
@@ -724,11 +748,12 @@ public static class GuiLuaBridge
 
                     // Uložíme ho do slovníku, aby šel později odstranit
                     // Save it in the dictionary for later removal
-                    buttonCallbacks[bt] = newHandler;
+                    EventHandler<CommandEventArgs> wrappedHandler2 = (s, e) => newHandler();
+                    buttonCallbacks[bt] = wrappedHandler2;
 
                     // Připojíme nový handler
                     // Attach the new handler
-                    bt.Clicked += newHandler;
+                    bt.Accepting += wrappedHandler2;
                 }
                 break;
             case "OnUpKey":
@@ -754,7 +779,7 @@ public static class GuiLuaBridge
                         }
                     }
 
-                    Action<KeyEventEventArgs> newHandler;
+                    EventHandler<Key> newHandler;
 
                     if (IsLuaFunction(L, 3))
                     {
@@ -771,7 +796,7 @@ public static class GuiLuaBridge
                         }
 
 
-                        newHandler = (keyEvent) =>
+                        newHandler = (sender, key) =>
                         {
 
                             // Deduplikace - ignoruj pokud byl event před méně než 50ms
@@ -782,9 +807,8 @@ public static class GuiLuaBridge
                             }
                             lastKeyUpTime[textControl] = DateTime.Now;
 
-                            var key = keyEvent.KeyEvent;
-                            int keyCode = (int)key.Key;
-                            char keyChar = (char)key.KeyValue;
+                            int keyCode = (int)key.KeyCode;
+                            char keyChar = key.AsRune.Value <= 0xFFFF ? (char)key.AsRune.Value : '\0';
 
                             // Zpracuj argumenty - nahraď placeholdery
                             object[] processedArgs = new object[args.Length];
@@ -831,11 +855,10 @@ public static class GuiLuaBridge
                         // ✅ STRING - nahraď placeholdery
                         string luaCallback = ToLuaString(L, 3);
 
-                        newHandler = (keyEvent) =>
+                        newHandler = (sender, key) =>
                         {
-                            var key = keyEvent.KeyEvent;
-                            int keyCode = (int)key.Key;
-                            char keyChar = (char)key.KeyValue;
+                            int keyCode = (int)key.KeyCode;
+                            char keyChar = key.AsRune.Value <= 0xFFFF ? (char)key.AsRune.Value : ' ';
                             
                             string processedCallback = luaCallback
 
@@ -852,6 +875,148 @@ public static class GuiLuaBridge
                     textControl.KeyUp += newHandler;
                 }
                 break;
+            case "Color":
+            {
+                int argCount = GetTop(L) - 2;
+                element.SetScheme(BuildColorScheme(L, 3, argCount));
+                element.SetNeedsDraw();
+                break;
+            }
+            case "ColorNormal":
+            {
+                var ex = element.GetScheme() ?? new Scheme();
+                int fr = ToLuaInteger(L,3), fg_c = ToLuaInteger(L,4), fb = ToLuaInteger(L,5);
+                int br = ToLuaInteger(L,6), bg_c = ToLuaInteger(L,7), bb = ToLuaInteger(L,8);
+                element.SetScheme( new Scheme
+                {
+                    Normal    = new Attribute(new Color(fr,fg_c,fb), new Color(br,bg_c,bb)),
+                    Focus     = ex.Focus,
+                    HotNormal = ex.HotNormal,
+                    HotFocus  = ex.HotFocus,
+                    Disabled  = ex.Disabled,
+                    Highlight = ex.Highlight,
+                });
+                element.SetNeedsDraw();
+                break;
+            }
+            case "ColorFocus":
+            {
+                var ex = element.GetScheme() ?? new Scheme();
+                int fr = ToLuaInteger(L,3), fg_c = ToLuaInteger(L,4), fb = ToLuaInteger(L,5);
+                int br = ToLuaInteger(L,6), bg_c = ToLuaInteger(L,7), bb = ToLuaInteger(L,8);
+                element.SetScheme( new Scheme
+                {
+                    Normal    = ex.Normal,
+                    Focus     = new Attribute(new Color(fr, fg_c, fb), new Color(br, bg_c, bb)),
+                    HotNormal = ex.HotNormal,
+                    HotFocus  = ex.HotFocus,
+                    Disabled  = ex.Disabled,
+                    Highlight = ex.Highlight,
+
+                });
+                element.SetNeedsDraw();
+                break;
+            }
+            case "ColorHotNormal":
+            {
+                var ex = element.GetScheme() ?? new Scheme();
+                int fr = ToLuaInteger(L,3), fg_c = ToLuaInteger(L,4), fb = ToLuaInteger(L,5);
+                int br = ToLuaInteger(L,6), bg_c = ToLuaInteger(L,7), bb = ToLuaInteger(L,8);
+                element.SetScheme( new Scheme
+                {
+                    Normal    = ex.Normal,
+                    Focus     = ex.Focus,
+                    HotNormal = new Attribute(new Color(fr,fg_c,fb), new Color(br,bg_c,bb)),
+                    HotFocus  = ex.HotFocus,
+                    Disabled  = ex.Disabled,
+                    Highlight = ex.Highlight,
+                });
+                element.SetNeedsDraw();
+                break;
+            }
+            case "ColorHotFocus":
+            {
+                var ex = element.GetScheme() ?? new Scheme();
+                int fr = ToLuaInteger(L,3), fg_c = ToLuaInteger(L,4), fb = ToLuaInteger(L,5);
+                int br = ToLuaInteger(L,6), bg_c = ToLuaInteger(L,7), bb = ToLuaInteger(L,8);
+                element.SetScheme( new Scheme
+                {
+                    Normal    = ex.Normal,
+                    Focus     = ex.Focus,
+                    HotNormal = ex.HotNormal,
+                    HotFocus  = new Attribute(new Color(fr,fg_c,fb), new Color(br,bg_c,bb)),
+                    Disabled  = ex.Disabled,
+                    Highlight = ex.Highlight,
+                });
+                element.SetNeedsDraw();
+                break;
+            }
+            case "ColorHot":
+            {
+                var ex = element.GetScheme() ?? new Scheme();
+                int fr = ToLuaInteger(L,3), fg_c = ToLuaInteger(L,4), fb = ToLuaInteger(L,5);
+                int br = ToLuaInteger(L,6), bg_c = ToLuaInteger(L,7), bb = ToLuaInteger(L,8);
+                var attr = new Attribute(new Color(fr,fg_c,fb), new Color(br,bg_c,bb));
+                element.SetScheme( new Scheme
+                {
+                    Normal    = ex.Normal,
+                    Focus     = ex.Focus,
+                    HotNormal = attr,
+                    HotFocus  = attr,
+                    Disabled  = ex.Disabled,
+                    Highlight = ex.Highlight,
+                });
+                element.SetNeedsDraw();
+                break;
+            }
+            case "ColorDisabled":
+            {
+                var ex = element.GetScheme() ?? new Scheme();
+                int fr = ToLuaInteger(L,3), fg_c = ToLuaInteger(L,4), fb = ToLuaInteger(L,5);
+                int br = ToLuaInteger(L,6), bg_c = ToLuaInteger(L,7), bb = ToLuaInteger(L,8);
+                element.SetScheme( new Scheme
+                {
+                    Normal    = ex.Normal,
+                    Focus     = ex.Focus,
+                    HotNormal = ex.HotNormal,
+                    HotFocus  = ex.HotFocus,
+                    Disabled  = new Attribute(new Color(fr,fg_c,fb), new Color(br,bg_c,bb)),
+                    Highlight = ex.Highlight,
+                });
+                element.SetNeedsDraw();
+                break;
+            }
+            case "ColorHighlight":
+            {
+                var ex = element.GetScheme() ?? new Scheme();
+                int fr = ToLuaInteger(L, 3), fg_c = ToLuaInteger(L, 4), fb = ToLuaInteger(L, 5);
+                int br = ToLuaInteger(L, 6), bg_c = ToLuaInteger(L, 7), bb = ToLuaInteger(L, 8);
+
+                element.SetScheme(new Scheme
+                {
+                    Normal = ex.Normal,
+                    Focus = ex.Focus,
+                    HotNormal = ex.HotNormal,
+                    HotFocus = ex.HotFocus,
+                    Disabled = ex.Disabled,
+                    Highlight = new Attribute(new Color(fr, fg_c, fb), new Color(br, bg_c, bb), TextStyle.Italic),
+                });
+                element.SetNeedsDraw();
+                break;
+            }
+            case "Scheme":
+            {
+                string schemeName = ToLuaString(L, 3);
+                    var cs = SchemeManager.GetScheme(schemeName);
+                if (cs != null)
+                {
+                    element.SchemeName = schemeName;
+                    element.SetNeedsDraw();
+                }
+                else
+                    Console.WriteLine($"⚠️ Unknown scheme: {schemeName}");
+                break;
+            }
             default:
                 Console.WriteLine($"⚠️ Unknown property: {property}");
                 break;
@@ -892,15 +1057,15 @@ public static class GuiLuaBridge
             case "Checked":
                 if (element is CheckBox cb)
                 {
-                    PushLuaBoolean(L, cb.Checked);
+                    PushLuaBoolean(L, cb.Value == CheckState.Checked);
                     return 1;
                 }
                 break;
 
             case "Selected":
-                if (element is RadioGroup radio)
+                if (element is OptionSelector radio)
                 {
-                    PushLuaInteger(L, radio.SelectedItem);
+                    PushLuaInteger(L, radio.Value ?? 0);
                     return 1;
                 }
                 break;
@@ -919,38 +1084,33 @@ public static class GuiLuaBridge
         return 0;
     }
 
+    static public List<MenuItem> fileMenuItems = new List<MenuItem>();
     public static int AddMenuItem(IntPtr L)
     {
         string menuName = ToLuaString(L, 1); // Název položky
         string luaCallback = ToLuaString(L, 2); // Funkce v Lua
-#if NEW_MENU
-        if (!menuReferences.TryGetValue("_File", out MenuEntry? projectsMenu))
-#else
+
         if (!menuReferences.TryGetValue("_File", out MenuBarItem? projectsMenu))
-#endif
+
         {
-            Console.WriteLine("⚠️ Menu '_File' neexistuje!");
+            Console.WriteLine("⚠️ Menu '_File' doesn't exist!");
             return 0;
         }
-#if NEW_MENU
-        var newItem = new MenuEntry(menuName, () => luaGUI.RunSlicedString(luaCallback));
+        var newItem = new MenuItem(menuName, "", () => luaGUI.RunSlicedString(luaCallback, true));
 
-        // Přidáme do seznamu položek v menu
-
-        projectsMenu.AddChild(newItem);
-#else
-        var newItem = new MenuItem(menuName, "", () => luaGUI.RunSlicedString(luaCallback,true));
-
-        var menuItems = projectsMenu.Children.ToList();
-        menuItems.Add(newItem);
-        projectsMenu.Children = menuItems.ToArray();
-#endif
-
-        // Uložíme novou položku do referencí
+        fileMenuItems.Add(newItem);
         menuItemReferences[menuName] = newItem;
 
-        // Obnovíme GUI
-        Application.Top.SetNeedsDisplay();
+        var idx = items.IndexOf(projectsMenu);
+        if (idx >= 0)
+        {
+            var updatedMenu = new MenuBarItem("_File", fileMenuItems.ToArray());
+            items[idx] = updatedMenu;
+            menuReferences["_File"] = updatedMenu;
+            menu.Menus = items.ToArray();
+        }
+
+        App.TopRunnableView.SetNeedsDraw();
 
         return 0;
     }
@@ -986,51 +1146,34 @@ public static class GuiLuaBridge
 
     public static void UpdateMenuTitle(string originalTitle, string newTitle)
     {
-#if NEW_MENU
-        if (menuReferences.TryGetValue(originalTitle, out MenuEntry? menu))
-        {
-#else
         if (menuReferences.TryGetValue(originalTitle, out MenuBarItem? menu))
         {
-#endif
             menu.Title = newTitle;
-            Application.Top.SetNeedsDisplay(); // Obnova GUI
+            App.TopRunnableView.SetNeedsDraw(); // Obnova GUI
         }
     }
 
 
     public static void UpdateMenuItem(string menuOriginal, string itemOriginal, string newItemName)
     {
-#if NEW_MENU
-        if (menuItemReferences.TryGetValue(itemOriginal, out MenuEntry item))
-#else
         if (menuItemReferences.TryGetValue(itemOriginal, out MenuItem item))
-#endif
         {
             item.Title = newItemName;
-            Application.Top.SetNeedsDisplay(); // Obnova GUI
+            App.TopRunnableView.SetNeedsDraw(); // Obnova GUI
         }
 
     }
-
+    /*
     public static void ClearProjectMenu()
     {
-#if NEW_MENU
-        if (!menuReferences.TryGetValue("_File", out MenuEntry? projectsMenu))
-#else
         if (!menuReferences.TryGetValue("_File", out MenuBarItem? projectsMenu))
-#endif
         {
-            Console.WriteLine("⚠️ Menu '_File' neexistuje!");
+            Console.WriteLine("⚠️ Menu '_File' doesn't exist!");
             return;
         }
 
         // Vyčistíme položky
-#if NEW_MENU
-        projectsMenu.Children.Clear();
-#else
         projectsMenu.Children = Array.Empty<MenuItem>();
-#endif
 
         // Odstraníme je i z referencí
         foreach (var key in menuItemReferences.Keys.Where(k => menuItemReferences[k].Parent == projectsMenu).ToList())
@@ -1039,6 +1182,37 @@ public static class GuiLuaBridge
         }
 
 
+    }*/
+
+    public static void ClearProjectMenu()
+    {
+        if (!menuReferences.TryGetValue("_File", out MenuBarItem? projectsMenu))
+        {
+            Console.WriteLine("⚠️ Menu '_File' doesn't exist!");
+            return;
+        }
+
+        // Zjistíme aktuální položky z PopoverMenu a odstraníme je z referencí
+        var currentItems = projectsMenu.PopoverMenu?.Root
+            ?.GetMenuItemsOfAllSubMenus()
+            ?.Select(i => i.Title?.ToString())
+            ?.Where(t => t != null)
+            ?.ToList() ?? new List<string>();
+
+        foreach (var title in currentItems)
+            menuItemReferences.Remove(title!);
+
+        fileMenuItems.Clear();
+
+        // Nahradíme "_File" prázdným MenuBarItem
+        var idx = items.FindIndex(m => m.Title?.ToString() == "_File");
+        if (idx >= 0)
+        {
+            var emptyMenu = new MenuBarItem("_File", Array.Empty<MenuItem>());
+            items[idx] = emptyMenu;
+            menuReferences["_File"] = emptyMenu;
+            menu.Menus = items.ToArray();
+        }
     }
 
     public static int RemoveMenuItem(IntPtr L)
@@ -1051,26 +1225,19 @@ public static class GuiLuaBridge
 
     public static void RemoveMenuItem(string itemName)
     {
-#if NEW_MENU
-        if (!menuReferences.TryGetValue("_File", out MenuEntry? projectsMenu))
-        {
-            Console.WriteLine("⚠️ Menu '_File' neexistuje!");
-            return;
-        }
-#else
         if (!menuReferences.TryGetValue("_File", out MenuBarItem? projectsMenu))
         {
-            Console.WriteLine("⚠️ Menu '_File' neexistuje!");
+            Console.WriteLine("⚠️ Menu '_File' doesn't exist!");
             return;
         }
-#endif
+
         // Hledáme položku v menu
-        var menuItems = projectsMenu.Children.ToList();
+        var menuItems = projectsMenu.PopoverMenu?.Root?.GetMenuItemsOfAllSubMenus().ToList();
         var itemToRemove = menuItems.FirstOrDefault(item => item.Title.ToString() == itemName);
 
         if (itemToRemove == null)
         {
-            Console.WriteLine($"⚠️ Položka menu '{itemName}' neexistuje!");
+            Console.WriteLine($"⚠️ Menu item '{itemName}' doesn't exist!");
             return;
         }
 
@@ -1082,7 +1249,7 @@ public static class GuiLuaBridge
         menuItemReferences.Remove(itemName);
 
         // Obnovíme GUI
-        Application.Top.SetNeedsDisplay();
+        App.TopRunnableView.SetNeedsDraw();
     }
 
 
@@ -1101,31 +1268,25 @@ public static class GuiLuaBridge
 
         //SetMenuItemEnabled("_Reset CLua", !disable);
 
-        Application.Top.SetNeedsDisplay();
+        App.TopRunnableView.SetNeedsDraw();
 
     }
 
     public static void SetMenuEnabled(string menuTitle, bool enabled)
     {
-#if NEW_MENU
-        if (!menuReferences.TryGetValue(menuTitle, out var menuItem))
-            return;
+        if (menuReferences.TryGetValue(menuTitle, out MenuBarItem? menu))
+        {
 
-        menuItem.Enabled = enabled;
-#else
-        if (!menuReferences.TryGetValue(menuTitle, out MenuBarItem? menu))
-        { 
-            Console.WriteLine($"⚠️ Menu '{menuTitle}' neexistuje!");
-            return;
-
-  
+            menu.Enabled = enabled;
 
         }
+        else
+        {
+            Console.WriteLine($"⚠️ Menu '{menuTitle}' doesn't exist!");
+            return;
 
-        menu.CanExecute = () => enabled;
-        
-#endif
-        Application.Top.SetNeedsDisplay();
+        }
+        App.TopRunnableView.SetNeedsDraw();
     }
 
 
@@ -1162,7 +1323,7 @@ public static class GuiLuaBridge
         elements.Remove(elementId);
         //Console.WriteLine($"✅ Element ID {elementId} was destroyed.");
 
-        top.SetNeedsDisplay();
+        top.SetNeedsDraw();
 
         return 0;
     }
@@ -1173,9 +1334,9 @@ public static class GuiLuaBridge
     {
         // Nejdřív vyčisti všechny děti
         // First, clean up all children
-        if (element.Subviews != null)
+        if (element.SubViews != null)
         {
-            foreach (var child in element.Subviews.ToList())
+            foreach (var child in element.SubViews.ToList())
             {
                 CleanupElementAndChildren(L, child);
 
@@ -1226,7 +1387,7 @@ public static class GuiLuaBridge
         {
             if (buttonCallbacks.ContainsKey(btn))
             {
-                btn.Clicked -= buttonCallbacks[btn];
+                btn.Accepting -= buttonCallbacks[btn];
                 buttonCallbacks.Remove(btn);
             }
 
@@ -1251,7 +1412,7 @@ public static class GuiLuaBridge
         {
             if (elem is FrameView window)
             {
-                foreach (var child in window.Subviews.ToList())
+                foreach (var child in window.SubViews.ToList())
                 {
                     window.Remove(child);
                 }
@@ -1287,8 +1448,8 @@ public static class GuiLuaBridge
         textFieldKeyUpCallbacks.Clear();
 
         elements.Clear(); // Vyčistíme seznam prvků
-        top.SetNeedsDisplay(); // Aktualizace GUI
-        Application.Refresh();
+        top.SetNeedsDraw(); // Aktualizace GUI
+        App.LayoutAndDraw();
         Console.WriteLine("✅ GUI has been reset.");
 
         return 0;
@@ -1301,11 +1462,97 @@ public static class GuiLuaBridge
         Console.WriteLine($"📊 Registry refs: {buttonCallbackRefs.Count}");
     }
 
+
+    // ── Pomocná funkce pro sestavení ColorScheme z Lua argumentů ──────────────
+    private static Scheme BuildColorScheme(IntPtr L, int startIndex, int argCount)
+    {
+        Color ParseFg(int offset) => new Color(
+            ToLuaInteger(L, startIndex + offset),
+            ToLuaInteger(L, startIndex + offset + 1),
+            ToLuaInteger(L, startIndex + offset + 2));
+
+        Color ParseBg(int offset) => new Color(
+            ToLuaInteger(L, startIndex + offset + 3),
+            ToLuaInteger(L, startIndex + offset + 4),
+            ToLuaInteger(L, startIndex + offset + 5));
+
+        if (argCount >= 36)
+        {
+            // Téměř Plná kontrola: Normal, Focus, HotNormal, HotFocus, Disabled, Highlight
+            return new Scheme
+            {
+                Normal = new Attribute(ParseFg(0), ParseBg(0)),
+                Focus = new Attribute(ParseFg(6), ParseBg(6)),
+                HotNormal = new Attribute(ParseFg(12), ParseBg(12)),
+                HotFocus = new Attribute(ParseFg(18), ParseBg(18)),
+                Disabled = new Attribute(ParseFg(24), ParseBg(24)),
+                Highlight = new Attribute(ParseFg(30), ParseBg(30), TextStyle.Italic),
+            };
+
+        }
+        else if (argCount >= 30)
+        {
+            // Téměř Plná kontrola: Normal, Focus, HotNormal, HotFocus, Disabled
+            return new Scheme
+            {
+                Normal = new Attribute(ParseFg(0), ParseBg(0)),
+                Focus = new Attribute(ParseFg(6), ParseBg(6)),
+                HotNormal = new Attribute(ParseFg(12), ParseBg(12)),
+                HotFocus = new Attribute(ParseFg(18), ParseBg(18)),
+                Disabled = new Attribute(ParseFg(24), ParseBg(24)),
+                Highlight = new Attribute(ParseFg(6), ParseBg(6), TextStyle.Italic),
+            };
+        }
+        else if (argCount >= 12)
+        {
+            // Normal + Focus (Hot odvozen od Focus, Disabled ztmaveno)
+            var normalAttr = new Attribute(ParseFg(0), ParseBg(0));
+            var focusAttr = new Attribute(ParseFg(6), ParseBg(6));
+            var highlightAttr = new Attribute(ParseFg(6), ParseBg(6), TextStyle.Italic);
+            return new Scheme
+            {
+                Normal = normalAttr,
+                Focus = focusAttr,
+                HotNormal = normalAttr,
+                HotFocus = focusAttr,
+                Disabled = new Attribute(new Color(100, 100, 100), ParseBg(0)),
+                Highlight = highlightAttr,
+            };
+        }
+        else
+        {
+            // 6 hodnot: všech 5 stavů stejně
+            var attr = new Attribute(ParseFg(0), ParseBg(0));
+            var highlightAttr = new Attribute(ParseFg(0), ParseBg(0), TextStyle.Italic);
+            return new Scheme
+            {
+                Normal = attr,
+                Focus = attr,
+                HotNormal = attr,
+                HotFocus = attr,
+                Disabled = new Attribute(new Color(100, 100, 100), ParseBg(0)),
+                Highlight = highlightAttr,
+            };
+        }
+    
+    }
+
+    // ── SetScheme: vytvoří nebo přepíše schéma v Colors.ColorSchemes ──────────
+    public static int SetScheme(IntPtr L)
+    {
+        string name = ToLuaString(L, 1);
+        int argCount = GetTop(L) - 1;
+        var scheme = BuildColorScheme(L, 2, argCount);
+        SchemeManager.Schemes[name] = scheme;
+        App.TopRunnableView?.SetNeedsDraw();
+        return 0;
+    }
+
     // tu reset LUACode;
     public static int ResetSGUI(IntPtr L)
     {
 
-        Application.MainLoop.Invoke(() =>
+        App.Invoke(() =>
         {
             ExcelManager.CloseAllWorkbooks();
             DestroyAllElements(IntPtr.Zero);

@@ -38,9 +38,11 @@ namespace CLua
                 new LuaFunctionEntry { Name = "DestroyAllElements",   Function = GuiLuaBridge.DestroyAllElements },
                 new LuaFunctionEntry { Name = "RemoveMenuItem",   Function = GuiLuaBridge.RemoveMenuItem },
                 new LuaFunctionEntry { Name = "DisableMenu",   Function = GuiLuaBridge.DisableMenu },
+                new LuaFunctionEntry { Name = "SetScheme",   Function = GuiLuaBridge.SetScheme },
+
                 new LuaFunctionEntry { Name = "reset",   Function = GuiLuaBridge.ResetSGUI },
 
-                new LuaValueEntry { Name = "Ver",  Value = "TGUI 1.2" },
+                new LuaValueEntry { Name = "Ver",  Value = "TGUI 2.4.4" },
 
             });
 
@@ -255,6 +257,16 @@ namespace CLua
             Instance.RegisterNewConstant("PROB_XY", "XY");
             Instance.RegisterNewConstant("PROB_WH", "WH");
             Instance.RegisterNewConstant("PROB_XYWH", "XYWH");
+
+            Instance.RegisterNewConstant("PROB_COLOR",          "Color");
+            Instance.RegisterNewConstant("PROB_COLOR_NORMAL",   "ColorNormal");
+            Instance.RegisterNewConstant("PROB_COLOR_FOCUS",    "ColorFocus");
+            Instance.RegisterNewConstant("PROB_COLOR_HOT",        "ColorHot");
+            Instance.RegisterNewConstant("PROB_COLOR_HOT_NORMAL", "ColorHotNormal");
+            Instance.RegisterNewConstant("PROB_COLOR_HOT_FOCUS",  "ColorHotFocus");
+            Instance.RegisterNewConstant("PROB_COLOR_DISABLED", "ColorDisabled");
+            Instance.RegisterNewConstant("PROB_COLOR_HIGHLIGHT", "ColorHighlight");
+            Instance.RegisterNewConstant("PROB_SCHEME",         "Scheme");
 
             //jiné konstatny
             Instance.RegisterNewConstant("VERSION", CLua_ver);

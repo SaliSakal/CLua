@@ -9,182 +9,178 @@ namespace Lua
 
         public delegate void LuaHook(IntPtr L, IntPtr ar);
 
-        const string LuaLibrary = "lua54"; // Název DLL souboru
+        const string LuaLibrary = "lua55"; // Název DLL souboru
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern IntPtr luaL_newstate();
+        [LibraryImport(LuaLibrary)]
+        private static partial IntPtr luaL_newstate();
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void luaL_openlibs(IntPtr L);
+        [LibraryImport(LuaLibrary)]
+        private static partial void luaL_openselectedlibs(IntPtr L, int load, int preload);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_close(IntPtr L);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_close(IntPtr L);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int luaL_loadfilex(IntPtr L, string filename, string mode);
+        [LibraryImport(LuaLibrary, StringMarshalling = StringMarshalling.Utf8)]
+        private static partial int luaL_loadfilex(IntPtr L, string filename, string mode);
 
-
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int luaL_loadbufferx(IntPtr L, IntPtr buff, UIntPtr size, IntPtr name, IntPtr mode);
+        [LibraryImport(LuaLibrary)]
+        private static partial int luaL_loadbufferx(IntPtr L, IntPtr buff, UIntPtr size, IntPtr name, IntPtr mode);
 
         // `lua_pcallk` místo `lua_pcall`
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int lua_pcallk(IntPtr L, int nargs, int nresults, int errfunc, int ctx, IntPtr k);
+        [LibraryImport(LuaLibrary)]
+        private static partial int lua_pcallk(IntPtr L, int nargs, int nresults, int errfunc, int ctx, IntPtr k);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int lua_callk(IntPtr L, int nargs, int nresults, int errfunc, int ctx, IntPtr k);
+        [LibraryImport(LuaLibrary)]
+        private static partial int lua_callk(IntPtr L, int nargs, int nresults, int errfunc, int ctx, IntPtr k);
 
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int luaL_loadstring(IntPtr L, string script);
+        [LibraryImport(LuaLibrary, StringMarshalling = StringMarshalling.Utf8)]
+        private static partial int luaL_loadstring(IntPtr L, string script);
+        [LibraryImport(LuaLibrary)]
+        private static partial IntPtr lua_tolstring(IntPtr L, int index, out IntPtr len);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern IntPtr lua_tolstring(IntPtr L, int index, out IntPtr len);
+        [LibraryImport(LuaLibrary)]
+        private static partial int lua_gettop(IntPtr L);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int lua_gettop(IntPtr L);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_pushcclosure(IntPtr L, IntPtr fn, int n);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_pushcclosure(IntPtr L, IntPtr fn, int n);
+        [LibraryImport(LuaLibrary, StringMarshalling = StringMarshalling.Utf8)]
+        private static partial void lua_setglobal(IntPtr L, string name);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_setglobal(IntPtr L, string name);
+        [LibraryImport(LuaLibrary, StringMarshalling = StringMarshalling.Utf8)]
+        private static partial int lua_getglobal(IntPtr luaState, string name);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int lua_getglobal(IntPtr luaState, string name);
+        [LibraryImport(LuaLibrary)]
+        private static partial double lua_tonumberx(IntPtr L, int index, IntPtr isnum);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern double lua_tonumberx(IntPtr L, int index, IntPtr isnum);
+        [LibraryImport(LuaLibrary)]
+        private static partial long lua_tointegerx(IntPtr L, int index, IntPtr isnum);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern long lua_tointegerx(IntPtr L, int index, IntPtr isnum);
+        [LibraryImport(LuaLibrary)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool lua_toboolean(IntPtr L, int index);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern bool lua_toboolean(IntPtr L, int index);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_pushinteger(IntPtr L, int value);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_pushinteger(IntPtr L, int value);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_insert(IntPtr L, int index);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_insert(IntPtr L, int index);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_remove(IntPtr L, int index);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_remove(IntPtr L, int index);
+        [LibraryImport(LuaLibrary, StringMarshalling = StringMarshalling.Utf8)]
+        private static partial int luaL_callmeta(IntPtr L, int obj, string e);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int luaL_callmeta(IntPtr L, int obj, string e);
+        [LibraryImport(LuaLibrary)]
+        private static partial int lua_type(IntPtr L, int index);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int lua_type(IntPtr L, int index);
+        [LibraryImport(LuaLibrary)]
+        private static partial IntPtr lua_typename(IntPtr L, int type);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern IntPtr lua_typename(IntPtr L, int type);
+        [LibraryImport(LuaLibrary, StringMarshalling = StringMarshalling.Utf8)]
+        private static partial void lua_pushstring(IntPtr L, string str);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_pushstring(IntPtr L, string str);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_pushnumber(IntPtr L, double number);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_pushnumber(IntPtr L, double number);
+        [LibraryImport(LuaLibrary, StringMarshalling = StringMarshalling.Utf8)]
+        private static partial void luaL_traceback(IntPtr L, IntPtr L1, string msg, int level);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void luaL_traceback(IntPtr L, IntPtr L1, string msg, int level);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_rotate(IntPtr L, int idx, int n);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_rotate(IntPtr L, int idx, int n);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_settop(IntPtr L, int idx);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_settop(IntPtr L, int idx);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_pop(IntPtr L, int n);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_pop(IntPtr L, int n);
-
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_getfield(IntPtr L, int index, string key);
+        [LibraryImport(LuaLibrary, StringMarshalling = StringMarshalling.Utf8)]
+        private static partial void lua_getfield(IntPtr L, int index, string key);
 
         // Import pro lua_pushnil - vloží nil do Lua zásobníku
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_pushnil(IntPtr luaState);
-
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_pushnil(IntPtr luaState);
         // Import pro lua_pushlstring - vloží řetězec do Lua zásobníku (s explicitní délkou)
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern IntPtr lua_pushlstring(IntPtr luaState, IntPtr s, UIntPtr len);
+        [LibraryImport(LuaLibrary)]
+        private static partial IntPtr lua_pushlstring(IntPtr luaState, IntPtr s, UIntPtr len);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_createtable(IntPtr L, int narr, int nrec);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_createtable(IntPtr L, int narr, int nrec);
 
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_settable(IntPtr luaState, int index);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_settable(IntPtr luaState, int index);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_pushboolean(IntPtr L, int b);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_pushboolean(IntPtr L, int b);
+        [LibraryImport(LuaLibrary)]
+        private static partial IntPtr lua_setupvalue(IntPtr luaState, int funcIndex, int n);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern IntPtr lua_setupvalue(IntPtr luaState, int funcIndex, int n);
+        [LibraryImport(LuaLibrary)]
+        private static partial IntPtr lua_getupvalue(IntPtr luaState, int funcIndex, int n);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern IntPtr lua_getupvalue(IntPtr luaState, int funcIndex, int n);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_pushvalue(IntPtr luaState, int index);
 
+        [LibraryImport(LuaLibrary, StringMarshalling = StringMarshalling.Utf8)]
+        private static partial void lua_setfield(IntPtr luaState, int index, string key);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_pushvalue(IntPtr luaState, int index);
+        [LibraryImport(LuaLibrary)]
+        private static partial int lua_setmetatable(IntPtr luaState, int index);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_setfield(IntPtr luaState, int index, string key);
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int lua_setmetatable(IntPtr luaState, int index);
+        [LibraryImport(LuaLibrary)]
+        private static partial int luaL_ref(IntPtr luaState, int t);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int luaL_ref(IntPtr luaState, int t);
+        [LibraryImport(LuaLibrary)]
+        private static partial void luaL_unref(IntPtr luaState, int t, int reference);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void luaL_unref(IntPtr luaState, int t, int reference);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_rawgeti(IntPtr luaState, int index, int n);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_rawgeti(IntPtr luaState, int index, int n);
+        [LibraryImport(LuaLibrary)]
+        private static partial IntPtr lua_newthread(IntPtr L);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern IntPtr lua_newthread(IntPtr L);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_xmove(IntPtr from, IntPtr to, int n);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_xmove(IntPtr from, IntPtr to, int n);
+        [LibraryImport(LuaLibrary)]
+        private static partial int lua_resume(IntPtr L, IntPtr from, int nargs, out int nresults);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int lua_resume(IntPtr L, IntPtr from, int nargs, out int nresults);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_sethook(IntPtr L, LuaHook hook, int mask, int count);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern void lua_sethook(IntPtr L, LuaHook hook, int mask, int count);
+        [LibraryImport(LuaLibrary)]
+        private static partial IntPtr lua_gethook(IntPtr L);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern IntPtr lua_gethook(IntPtr L);
+        [LibraryImport(LuaLibrary)]
+        private static partial int lua_gethookmask(IntPtr L);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int lua_gethookmask(IntPtr L);
+        [LibraryImport(LuaLibrary)]
+        private static partial int lua_gethookcount(IntPtr L);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int lua_gethookcount(IntPtr L);
+        [LibraryImport(LuaLibrary)]
+        private static partial int lua_status(IntPtr L);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int lua_status(IntPtr L);
+        [LibraryImport(LuaLibrary)]
+        private static partial int lua_yieldk(IntPtr L, int nresults, IntPtr ctx, IntPtr k);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int lua_yieldk(IntPtr L, int nresults, IntPtr ctx, IntPtr k);
+        [LibraryImport(LuaLibrary)]
+        private static partial int lua_error(IntPtr L);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int lua_error(IntPtr L);
+        [LibraryImport(LuaLibrary, StringMarshalling = StringMarshalling.Utf8)]
+        private static partial int luaL_error(IntPtr L, [MarshalAs(UnmanagedType.LPUTF8Str)] string message);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern int luaL_error(IntPtr L, [MarshalAs(UnmanagedType.LPUTF8Str)] string message);
+        [LibraryImport(LuaLibrary)]
+        private static partial IntPtr luaL_tolstring(IntPtr L, int idx, IntPtr len);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        static extern IntPtr luaL_tolstring(IntPtr L, int idx, IntPtr len);
+        [LibraryImport(LuaLibrary)]
+        private static partial void lua_pushlightuserdata(IntPtr L, IntPtr p);
 
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void lua_pushlightuserdata(IntPtr L, IntPtr p);
-
-        [DllImport(LuaLibrary, CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr lua_touserdata(IntPtr L, int index);
-
+        [LibraryImport(LuaLibrary)]
+        private static partial IntPtr lua_touserdata(IntPtr L, int index);
 
         // když se volá lua_type(luaState, index)  vrátí jednu z těhle konstant
         public const int LUA_TNONE = -1; // Neplatný index
@@ -199,8 +195,10 @@ namespace Lua
         public const int LUA_TTHREAD = 8;  // Vlákno (coroutine)
 
         // konstanty pro regsitry a volání
-        public const int LUA_REGISTRYINDEX = -1001000; // Registry index (globální proměnné)
+        // Nový výpočet pro Lua 5.5: (-1000000 - 1000)
+        public const int LUA_REGISTRYINDEX = -1073742823; // Registry index (globální proměnné)
         public const int LUA_MULTRET = -1;       // Návrat více hodnot z Lua funkce
+        public const int LUA_RIDX_MAINTHREAD = 1;
         public const int LUA_RIDX_GLOBALS = 2;
 
         // Konstanty pro lua_gettable() a lua_settable()
@@ -248,7 +246,9 @@ namespace Lua
 
         public static void OpenLibs(IntPtr L)
         {
-            luaL_openlibs(L);
+            // load = -1 (všechny bity zapnuté -> vše se načte do globálů)
+            // preload = 0 (nic se neschovává jen do require)
+            luaL_openselectedlibs(L,-1,0);   // načte všechno
         }
 
         public static double ToLuaNumber(IntPtr L, int index)
@@ -471,6 +471,11 @@ namespace Lua
 
         public static void SetField(IntPtr L, int index, string key)
         {
+            if (lua_type(L, index) != 5) // 5 je LUA_TTABLE
+            {
+                Console.WriteLine($"Chyba: Pokoušíš se nastavit field {key} do něčeho, co není tabulka {index}!");
+                return;
+            }
             lua_setfield(L, index, key);
         }
 
@@ -499,9 +504,9 @@ namespace Lua
             IntPtr strPtr = lua_tolstring(L, index, out length);
             if (strPtr == IntPtr.Zero) return "";
 
-                //  Správné dekódování UTF-8
-                byte[] utf8Bytes = new byte[length.ToInt32()];
-                Marshal.Copy(strPtr, utf8Bytes, 0, utf8Bytes.Length);
+            //  Správné dekódování UTF-8
+            byte[] utf8Bytes = new byte[length.ToInt32()];
+            Marshal.Copy(strPtr, utf8Bytes, 0, utf8Bytes.Length);
             return Encoding.UTF8.GetString(utf8Bytes);
 
         }
@@ -572,6 +577,9 @@ namespace Lua
                     case int i:
                         PushLuaNumber(L, i);
                         break;
+                    case Enum e: 
+                        PushLuaInteger(L, Convert.ToInt32(e)); 
+                        break;
                     case double d:
                         PushLuaNumber(L, d);
                         break;
@@ -595,9 +603,12 @@ namespace Lua
         {
             switch (value)
             {
+
                 case null: PushLuaNil(L); break;
                 case int i: PushLuaInteger(L, i); break;
+                case Enum e: PushLuaInteger(L, Convert.ToInt32(e)); break;
                 case double d: PushLuaNumber(L, d); break;
+                case float f:  PushLuaNumber(L, f);  break;
                 case bool b: PushLuaBoolean(L, b); break;
                 case string s: PushLuaString(L, s); break;
                 case Dictionary<string, object> dict: PushLuaTable(L, dict); break;

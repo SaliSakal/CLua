@@ -11,6 +11,7 @@
   <!--  <TreatWarningsAsErrors>true</TreatWarningsAsErrors>  -->
 
 
+
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <PublishTrimmed>true</PublishTrimmed>
@@ -21,8 +22,24 @@
 
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.105.0" />
-    <PackageReference Include="Terminal.Gui" Version="1.17.1" />
+    <PackageReference Include="Terminal.Gui" Version="2.4.4" />
     <TrimmerRootAssembly Include="System.Text.Json" />
+    <Content Include="..\..\Content\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::IsOsPlatform('Windows'))">
+    <Content Include="..\..\lua55.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::IsOsPlatform('Linux'))">
+    <Content Include="..\..\lua55.so">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>
