@@ -399,5 +399,7 @@ ElementClass.SetColorHotNormal= setColorHotNormal;
 ElementClass.SetColorHotFocus = setColorHotFocus;
 ElementClass.SetColorHot      = setColorHot;
 ElementClass.SetColorDisabled = setColorDisabled;
-ElementClass.SetColourHighlight = setColorHighlight;
+ElementClass.SetColorHighlight = setColorHighlight;
 ElementClass.ApplyScheme      = applyScheme;
+
+WindowClass.ApplyScheme       = applyScheme;
